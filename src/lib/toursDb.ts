@@ -104,13 +104,22 @@ export async function getTourDayWithEventsDb(tourId: string, dayNumber: number) 
 
   if (eventError) return { ...day, events: [] } as TourDay;
 
-  const articleIds = (events ?? []).map((event) => event.article_id).filter(Boolean) as string[];
-  const { data: articles } = articleIds.length
-    ? await supabase.from("event_articles").select("*").in("id", articleIds)
-    : { data: [] };
+  type ArticleRow = {
+    id: string;
+    title: string;
+    lead: string | null;
+    content_md: string | null;
+    images: string[] | null;
+  };
 
-  const articlesById = new Map<string, (typeof articles)[number]>();
-  (articles ?? []).forEach((article) => {
+  const articleIds = (events ?? []).map((event) => event.article_id).filter(Boolean) as string[];
+  const { data: articleData } = articleIds.length
+    ? await supabase.from("event_articles").select("*").in("id", articleIds)
+    : ({ data: [] as ArticleRow[] } as { data: ArticleRow[] });
+
+  const articles = (articleData ?? []) as ArticleRow[];
+  const articlesById = new Map<string, ArticleRow>();
+  articles.forEach((article) => {
     articlesById.set(article.id, article);
   });
 
