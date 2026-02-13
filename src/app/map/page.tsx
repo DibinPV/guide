@@ -23,9 +23,10 @@ export default async function MapPage() {
 
   return (
     <main>
-      <section className="text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary">Карта</p>
-        <h2 className="mt-2 text-h2">Места рядом и сохранённые</h2>
+      <section className="page-hero">
+        <p className="page-kicker">Карта</p>
+        <h2 className="page-title mt-2">Места рядом и сохранённые</h2>
+        <p className="page-subtitle mt-2">Показываем точки с координатами и быстрый доступ.</p>
         <Link className="text-xs text-soft hover:underline mt-2 inline-block" href="/">
           На главную
         </Link>

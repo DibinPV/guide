@@ -1,6 +1,6 @@
 # Offline Travel Guide
 
-Next.js PWA travel guide with offline support, tours by day, and location pages built from Markdown.
+Next.js PWA travel guide with offline support, tours by day, admin CMS, and feedback analytics.
 
 ## Requirements
 
@@ -77,7 +77,13 @@ Don’t:
 - Clickable area ≥ 44px
 - Hover states add information, never replace it
 
-## Content structure
+## Data Sources
+
+- **Tours, days, events, articles** are stored in **Supabase**.
+- **Places** are still loaded from Markdown files in `content/ru/places`.
+- Feedback is stored in Supabase.
+
+## Content structure (Places)
 
 ```
 content/
@@ -122,47 +128,26 @@ images: ["/images/your-photo.jpg"]
 Исторический контекст и факты.
 ```
 
-## Add tours
+## Add tours (Admin)
 
-Create a folder and a `tour.json` file:
+Tours are created/edited via the admin UI:
 
-```
-content/ru/tours/rome-3days/tour.json
-```
+- `http://localhost:3000/admin` (dashboard)
+- `http://localhost:3000/admin/tours`
+- `http://localhost:3000/admin/tours/new`
 
-Minimal example:
+Events are chronological and can be of two types:
 
-```json
-{
-  "title": "Рим за 3 дня",
-  "city": "Рим",
-  "country": "Италия",
-  "days": [
-    {
-      "day": 1,
-      "title": "Античный центр",
-      "stops": [
-        {
-          "place": "colosseum",
-          "description": "Осмотр главной арены.",
-          "passBy": "По пути увидим Арку Константина.",
-          "travelToNext": {
-            "mode": "walk",
-            "durationMinutes": 20,
-            "distanceKm": 1.5
-          }
-        }
-      ]
-    }
-  ]
-}
-```
+- `excursion` (экскурсия)
+- `travel` (перемещение)
+
+Each event can reference a **rich article** (title, lead, markdown body, images array).
 
 ## Offline
 
 Offline works in production builds (PWA). In development it is disabled.
 
-## Feedback (Supabase)
+## Supabase (Tours + Feedback)
 
 ### 1) Environment variables
 
@@ -171,14 +156,14 @@ Create `.env.local`:
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=... (optional, server-only)
+SUPABASE_SERVICE_ROLE_KEY=... (required for admin writes)
 ```
 
 In Vercel, add the same variables under **Project Settings → Environment Variables**.
 
 Notes:
 - `SUPABASE_SERVICE_ROLE_KEY` is **server-only** and should never be exposed to the client.
-- If not provided, the API route will fall back to the anon key.
+- Admin API routes use the service role key.
 
 ### 2) Database schema
 
@@ -191,11 +176,16 @@ Run SQL in Supabase (SQL Editor):
 - Feedback per **place**, **travel segment**, **day**, and **tour**
 - Like/dislike + 1–5 rating + comment
 - Auth-ready: `user_id` is optional now, can be enforced later with RLS policies
+- Tours data (tours, days, events, articles) for public pages + admin CMS
 
 ### 4) Tables
 
 The SQL creates these tables:
 
+- `tours`
+- `tour_days`
+- `tour_events`
+- `event_articles`
 - `feedback_place`
 - `feedback_stop`
 - `feedback_travel`
@@ -214,18 +204,20 @@ If schema changes are needed, append new statements to this file and re-run it i
 
 ### 6) RLS Policies
 
-Current policies allow public insert/select for feedback tables.  
-When auth is enabled, replace them with policies that use `auth.uid()` and restrict reads.
+Current policies allow public insert/select for feedback tables and public read for tours data.  
+When auth is enabled, replace them with policies that use `auth.uid()` and restrict reads/writes.
 
 ## Architecture
 
-- **Next.js App Router** (`src/app`)
-- **Content layer**: Markdown + JSON (`content/ru`)
-- **Content loaders**: `src/lib/places.ts`, `src/lib/tours.ts`
+- **Next.js App Router**: `src/app`
+- **Places content (Markdown)**: `content/ru/places`, loader `src/lib/places.ts`
+- **Tours content (Supabase)**: loader `src/lib/toursDb.ts`
 - **UI kit**: `src/ui/*`
 - **Design tokens & base styles**: `src/app/globals.css`
 - **Map**: MapLibre (`src/components/MapView.tsx`)
 - **Feedback API**: `src/app/api/feedback/route.ts`
+- **Admin API**: `src/app/api/admin/tours/*`
+- **Admin UI**: `src/app/admin/*`, `src/components/admin/*`
 
 ## Contributing
 
@@ -265,7 +257,7 @@ Minimal GitHub Actions flow:
 
 Vercel can handle production deploys automatically on push to `main`.
 
-## Content Authoring Guidelines
+## Content Authoring Guidelines (Places)
 
 1. **One place = one file** under `content/ru/places/`.
 2. Always include `title`, `city`, `country`, `lat`, `lng`.
@@ -277,4 +269,5 @@ Vercel can handle production deploys automatically on push to `main`.
 
 1. Push to GitHub.
 2. Import the repo in Vercel.
-3. Deploy with defaults.
+3. Add env vars from `.env.local`.
+4. Deploy with defaults.

@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { getAllTours, getTour } from "@/lib/tours";
 import { getPlace } from "@/lib/places";
-import { Badge } from "@/ui/Badge";
 import FeedbackSection from "@/components/FeedbackSection";
+import { getTourBySlugDb, getTourDayWithEventsDb, getTourDaysDb } from "@/lib/toursDb";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function formatMode(mode: string) {
   switch (mode) {
@@ -23,69 +25,6 @@ function formatMode(mode: string) {
   }
 }
 
-function ModeIcon({ mode }: { mode: string }) {
-  const common = "w-4 h-4";
-  switch (mode) {
-    case "walk":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="5" r="2" />
-          <path d="M9 21l2-6-2-4 3-2 3 3" />
-          <path d="M13 9l2-2" />
-        </svg>
-      );
-    case "bus":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="4" y="4" width="16" height="12" rx="2" />
-          <path d="M7 16v2M17 16v2" />
-          <path d="M7 8h10" />
-        </svg>
-      );
-    case "car":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M5 12l2-5h10l2 5" />
-          <rect x="4" y="12" width="16" height="6" rx="2" />
-          <circle cx="8" cy="18" r="1" />
-          <circle cx="16" cy="18" r="1" />
-        </svg>
-      );
-    case "metro":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="6" y="4" width="12" height="14" rx="3" />
-          <path d="M9 18l-2 2M15 18l2 2" />
-          <path d="M9 8h6" />
-        </svg>
-      );
-    case "train":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="7" y="3" width="10" height="14" rx="2" />
-          <path d="M7 13h10" />
-          <circle cx="10" cy="17" r="1" />
-          <circle cx="14" cy="17" r="1" />
-          <path d="M9 21l-2 2M15 21l2 2" />
-        </svg>
-      );
-    case "plane":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M3 12l18-6-6 6 6 6-18-6z" />
-        </svg>
-      );
-    default:
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 8v5" />
-          <circle cx="12" cy="16" r="1" />
-        </svg>
-      );
-  }
-}
-
 function formatMinutes(total: number) {
   const hours = Math.floor(total / 60);
   const minutes = total % 60;
@@ -94,52 +33,81 @@ function formatMinutes(total: number) {
   return `${hours} ч ${minutes} мин`;
 }
 
-export async function generateStaticParams() {
-  const tours = await getAllTours();
-  const params = [] as { slug: string; day: string }[];
-  for (const tour of tours) {
-    for (const day of tour.days) {
-      params.push({ slug: tour.slug, day: String(day.day) });
-    }
-  }
-  return params;
-}
-
 export default async function TourDayPage({ params }: { params: { slug: string; day: string } }) {
-  const tour = await getTour(params.slug);
-  const dayNum = Number(params.day);
-  const day = tour.days.find((d) => d.day === dayNum);
-
-  if (!day) {
+  const tour = await getTourBySlugDb(params.slug);
+  if (!tour) {
     return (
       <main>
-        <p>День не найден.</p>
+        <section className="page-hero">
+          <p className="page-kicker">День</p>
+          <h2 className="page-title mt-2">Тур не найден</h2>
+        </section>
       </main>
     );
   }
 
-  const stops = await Promise.all(
-    day.stops.map(async (stop) => ({
-      stop,
-      place: await getPlace(stop.place)
-    }))
-  );
+  const dayNum = Number(params.day);
+  const day = await getTourDayWithEventsDb(tour.id, dayNum);
+  const allDays = await getTourDaysDb(tour.id);
+  const dayIndex = allDays.findIndex((item) => item.day_number === dayNum);
+  const prevDay = dayIndex > 0 ? allDays[dayIndex - 1] : null;
+  const nextDay = dayIndex < allDays.length - 1 ? allDays[dayIndex + 1] : null;
 
-  const totalTravelMinutes = day.stops.reduce((sum, stop) => {
-    return sum + (stop.travelToNext?.durationMinutes || 0);
-  }, 0);
-  const totalDistanceKm = day.stops.reduce((sum, stop) => {
-    return sum + (stop.travelToNext?.distanceKm || 0);
-  }, 0);
+  if (!day) {
+    return (
+      <main>
+        <section className="page-hero">
+          <p className="page-kicker">День</p>
+          <h2 className="page-title mt-2">День не найден</h2>
+        </section>
+      </main>
+    );
+  }
+
+  const slugSet = new Set<string>();
+  day.events.forEach((event) => {
+    if (event.place_slug) slugSet.add(event.place_slug);
+    if (event.from_place_slug) slugSet.add(event.from_place_slug);
+    if (event.to_place_slug) slugSet.add(event.to_place_slug);
+  });
+
+  const placeEntries = await Promise.all(
+    Array.from(slugSet).map(async (slug) => {
+      try {
+        const place = await getPlace(slug);
+        return { slug, place };
+      } catch {
+        return { slug, place: null };
+      }
+    })
+  );
+  const placeMap = new Map(placeEntries.map(({ slug, place }) => [slug, place]));
+
+  const totalTravelMinutes = day.events
+    .filter((event) => event.type === "travel")
+    .reduce((sum, event) => sum + event.duration_minutes, 0);
+  const totalMinutes = day.events.reduce((sum, event) => sum + event.duration_minutes, 0);
 
   return (
     <main>
-      <section className="text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary">День {day.day}</p>
-        <h2 className="mt-2 text-h2">{day.title}</h2>
-        <Link className="text-xs text-soft hover:underline mt-2 inline-block" href={`/tours/${tour.slug}`}>
-          Назад к туру
-        </Link>
+      <section className="page-hero">
+        <p className="page-kicker">День {day.day_number}</p>
+        <h2 className="page-title mt-2">{day.title}</h2>
+        <div className="day-nav">
+          <Link className="text-xs text-soft hover:underline" href={`/tours/${tour.slug}`}>
+            ← Назад к туру
+          </Link>
+          {prevDay ? (
+            <Link className="text-xs text-soft hover:underline" href={`/tours/${tour.slug}/day/${prevDay.day_number}`}>
+              ← День {prevDay.day_number}
+            </Link>
+          ) : <span />}
+          {nextDay ? (
+            <Link className="text-xs text-soft hover:underline" href={`/tours/${tour.slug}/day/${nextDay.day_number}`}>
+              День {nextDay.day_number} →
+            </Link>
+          ) : <span />}
+        </div>
       </section>
 
       <section className="section">
@@ -147,70 +115,72 @@ export default async function TourDayPage({ params }: { params: { slug: string; 
           <span className="section-marker" />
           <h3 className="text-h3">Итоги дня</h3>
         </div>
-        <div className="section-inner flex flex-wrap gap-2">
-          <span className="chip">В пути: {formatMinutes(totalTravelMinutes)}</span>
-          <span className="chip">Дистанция: {totalDistanceKm.toFixed(1)} км</span>
+        <div className="section-inner day-meta-grid">
+          <div className="day-meta-card">
+            <p className="text-xs uppercase tracking-[0.2em] text-primary">Событий</p>
+            <h4 className="mt-2 text-h3">{day.events.length}</h4>
+          </div>
+          <div className="day-meta-card">
+            <p className="text-xs uppercase tracking-[0.2em] text-primary">В пути</p>
+            <h4 className="mt-2 text-h3">{formatMinutes(totalTravelMinutes)}</h4>
+          </div>
+          <div className="day-meta-card">
+            <p className="text-xs uppercase tracking-[0.2em] text-primary">Длительность дня</p>
+            <h4 className="mt-2 text-h3">{formatMinutes(totalMinutes)}</h4>
+          </div>
         </div>
       </section>
 
       <section className="section">
         <div className="section-header">
           <span className="section-marker" />
-          <h3 className="text-h3">Маршрут</h3>
+          <h3 className="text-h3">Хронология</h3>
         </div>
-        <div className="section-inner grid gap-4">
-          {stops.map(({ stop, place }, idx) => (
-            <div key={place.slug} className="grid gap-4">
-              <Link href={`/places/${place.slug}`} className="card card-link">
-                <div className="flex gap-4 items-start">
-                  <div className="h-20 w-20 overflow-hidden rounded-md border-neutral">
-                    <img
-                      src={place.images?.[0] ?? "/images/placeholder-1.svg"}
-                      alt={place.title}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs uppercase tracking-[0.2em] text-primary">Остановка {idx + 1}</p>
-                    <h3 className="mt-2 text-h3">{place.title}</h3>
-                    <p className="text-sm text-soft">{place.city} · {place.country}</p>
-                    {stop.description ? (
-                      <p className="mt-3 text-sm text-muted">{stop.description}</p>
+        <div className="section-inner timeline">
+          {day.events.map((event, index) => {
+            const excursionPlace = event.place_slug ? placeMap.get(event.place_slug) : null;
+            const fromPlace = event.from_place_slug ? placeMap.get(event.from_place_slug) : null;
+            const toPlace = event.to_place_slug ? placeMap.get(event.to_place_slug) : null;
+            return (
+              <div key={event.id} className="timeline-item">
+                <div className="timeline-time">
+                  <div className="timeline-time-pill">{event.start_time}</div>
+                  <div className="text-xs text-soft mt-2">{formatMinutes(event.duration_minutes)}</div>
+                </div>
+                <div className="timeline-marker">
+                  <span className="timeline-dot" />
+                  {index < day.events.length - 1 ? <span className="timeline-line" /> : null}
+                </div>
+                <Link
+                  href={`/tours/${tour.slug}/day/${day.day_number}/event/${event.id}`}
+                  className="timeline-card"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`timeline-badge ${event.type === "travel" ? "travel" : ""}`}>
+                      {event.type === "excursion" ? "ЭКСКУРСИЯ" : "ПЕРЕЕЗД"}
+                    </span>
+                    {event.type === "travel" && event.mode ? (
+                      <span className="chip">{formatMode(event.mode)}</span>
                     ) : null}
                   </div>
-                </div>
-                <div className="mt-3 flex justify-end">
-                  <span className="card-chevron">→</span>
-                </div>
-              </Link>
-
-              {stop.travelToNext ? (
-                <Link
-                  href={`/tours/${tour.slug}/day/${day.day}/travel/${idx}`}
-                  className="card card-link"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant="tour">
-                      <ModeIcon mode={stop.travelToNext.mode} />
-                    </Badge>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-primary">Переезд</p>
-                      <p className="text-sm text-muted">
-                        {formatMode(stop.travelToNext.mode)} · {stop.travelToNext.durationMinutes} мин
-                        {stop.travelToNext.distanceKm
-                          ? ` · ${stop.travelToNext.distanceKm} км`
-                          : ""}
-                      </p>
-                      <p className="text-xs text-soft mt-2">Что увидим по пути</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex justify-end">
-                    <span className="card-chevron">→</span>
-                  </div>
+                  <h3 className="mt-3 text-h3">{event.title}</h3>
+                  {event.summary ? (
+                    <p className="text-sm text-muted mt-2 timeline-summary">{event.summary}</p>
+                  ) : null}
+                  {event.type === "excursion" ? (
+                    <p className="text-sm text-soft mt-2">
+                      {excursionPlace ? `${excursionPlace.title} · ${excursionPlace.city}` : event.place_slug || "Без места"}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-soft mt-2">
+                      {fromPlace ? fromPlace.title : event.from_place_slug || "Откуда"} → {toPlace ? toPlace.title : event.to_place_slug || "Куда"}
+                    </p>
+                  )}
+                  <div className="mt-3 event-cta">Читать историю →</div>
                 </Link>
-              ) : null}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -223,7 +193,7 @@ export default async function TourDayPage({ params }: { params: { slug: string; 
           <FeedbackSection
             title="Отзыв о дне"
             buttonLabel="Оставить отзыв"
-            payload={{ target: "day", tour_slug: tour.slug, day_number: day.day }}
+            payload={{ target: "day", tour_slug: tour.slug, day_number: day.day_number }}
           />
         </div>
       </section>

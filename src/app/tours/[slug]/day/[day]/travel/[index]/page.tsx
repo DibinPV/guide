@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { getAllTours, getTour } from "@/lib/tours";
-import { getPlace } from "@/lib/places";
 import { Badge } from "@/ui/Badge";
 import FeedbackSection from "@/components/FeedbackSection";
+import { getTourBySlugDb, getTourDayWithEventsDb } from "@/lib/toursDb";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function formatMode(mode: string) {
   switch (mode) {
@@ -86,30 +88,13 @@ function ModeIcon({ mode }: { mode: string }) {
   }
 }
 
-export async function generateStaticParams() {
-  const tours = await getAllTours();
-  const params = [] as { slug: string; day: string; index: string }[];
-  for (const tour of tours) {
-    for (const day of tour.days) {
-      day.stops.forEach((stop, idx) => {
-        if (stop.travelToNext) params.push({ slug: tour.slug, day: String(day.day), index: String(idx) });
-      });
-    }
-  }
-  return params;
-}
-
 export default async function TravelPage({
   params
 }: {
   params: { slug: string; day: string; index: string };
 }) {
-  const tour = await getTour(params.slug);
-  const dayNum = Number(params.day);
-  const idx = Number(params.index);
-  const day = tour.days.find((d) => d.day === dayNum);
-
-  if (!day || !day.stops[idx] || !day.stops[idx].travelToNext) {
+  const tour = await getTourBySlugDb(params.slug);
+  if (!tour) {
     return (
       <main>
         <p>Переезд не найден.</p>
@@ -117,12 +102,13 @@ export default async function TravelPage({
     );
   }
 
-  const fromStop = day.stops[idx];
-  const toStop = day.stops[idx + 1];
-  const fromPlace = await getPlace(fromStop.place);
-  const toPlace = toStop ? await getPlace(toStop.place) : null;
-  const travel = fromStop.travelToNext;
-  if (!travel) {
+  const dayNum = Number(params.day);
+  const day = await getTourDayWithEventsDb(tour.id, dayNum);
+  const idx = Number(params.index);
+  const travelEvents = day?.events.filter((event) => event.type === "travel") ?? [];
+  const travel = travelEvents[idx];
+
+  if (!day || !travel) {
     return (
       <main>
         <p>Переезд не найден.</p>
@@ -132,10 +118,10 @@ export default async function TravelPage({
 
   return (
     <main>
-      <section className="text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary">Переезд</p>
-        <h2 className="mt-2 text-h2">{fromPlace.title} → {toPlace?.title ?? "следующая точка"}</h2>
-        <Link className="text-xs text-soft hover:underline mt-2 inline-block" href={`/tours/${tour.slug}/day/${day.day}`}>
+      <section className="page-hero">
+        <p className="page-kicker">Переезд</p>
+        <h2 className="page-title mt-2">{travel.title}</h2>
+        <Link className="text-xs text-soft hover:underline mt-2 inline-block" href={`/tours/${tour.slug}/day/${day.day_number}`}>
           Назад к дню маршрута
         </Link>
       </section>
@@ -143,29 +129,19 @@ export default async function TravelPage({
       <section className="section">
         <div className="card">
           <div className="flex items-center gap-3">
-            <Badge variant="tour"><ModeIcon mode={travel.mode} /></Badge>
+            <Badge variant="tour"><ModeIcon mode={travel.mode || ""} /></Badge>
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-primary">Способ</p>
               <p className="text-sm text-muted">
-                {formatMode(travel.mode)} · {travel.durationMinutes} мин
-                {travel.distanceKm ? ` · ${travel.distanceKm} км` : ""}
+                {travel.mode ? formatMode(travel.mode) : "перемещение"} · {travel.duration_minutes} мин
               </p>
             </div>
           </div>
-          {travel.notes ? (
-            <p className="text-sm text-soft mt-3">{travel.notes}</p>
+          {travel.summary ? (
+            <p className="text-sm text-soft mt-3">{travel.summary}</p>
           ) : null}
         </div>
       </section>
-
-      {fromStop.passBy ? (
-        <section className="section">
-          <div className="card">
-            <p className="text-xs uppercase tracking-[0.2em] text-primary">Что увидим по пути</p>
-            <p className="text-sm text-muted mt-2">{fromStop.passBy}</p>
-          </div>
-        </section>
-      ) : null}
 
       <section className="section">
         <div className="section-header">
@@ -179,7 +155,7 @@ export default async function TravelPage({
             payload={{
               target: "travel",
               tour_slug: tour.slug,
-              day_number: day.day,
+              day_number: day.day_number,
               travel_index: idx
             }}
           />

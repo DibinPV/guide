@@ -58,10 +58,10 @@ export default async function FeedbackStatsPage() {
 
   return (
     <main>
-      <section className="text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary">Отзывы</p>
-        <h2 className="mt-2 text-h2">Статистика</h2>
-        <p className="text-sm text-muted mt-1">Короткая сводка и разбивка по типам</p>
+      <section className="page-hero">
+        <p className="page-kicker">Отзывы</p>
+        <h2 className="page-title mt-2">Статистика</h2>
+        <p className="page-subtitle mt-2">Короткая сводка и разбивка по типам.</p>
       </section>
 
       <section className="section">
@@ -93,7 +93,7 @@ export default async function FeedbackStatsPage() {
           <span className="section-marker" />
           <h3 className="text-h3">Разбивка по типам</h3>
         </div>
-        <div className="section-inner card" style={{ padding: "16px" }}>
+        <div className="section-inner card card-compact">
           <div className="grid grid-cols-12 text-xs text-soft uppercase tracking-[0.2em]">
             <div className="col-span-4">Тип</div>
             <div className="col-span-2">Всего</div>

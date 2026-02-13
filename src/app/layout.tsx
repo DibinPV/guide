@@ -26,19 +26,15 @@ export default function RootLayout({
       <body>
         <div className="min-h-screen py-10">
           <div className="container">
-            <header className="grid gap-6 text-center mb-12">
-              <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-primary">
-                  Путешествие
-                </p>
-                <h1 className="text-3xl md:text-4xl font-semibold">
+            <header className="grid gap-4 mb-12">
+              <div className="flex items-center justify-between">
+                <h1 className="text-2xl md:text-3xl font-semibold" style={{ fontFamily: "var(--font-serif)" }}>
                   Оффлайн путеводитель
                 </h1>
-                <p className="text-sm mt-2 text-muted">
-                  Современный формат тура с маршрутом по дням
-                </p>
+                <div className="nav-pill">
+                  <TopNav />
+                </div>
               </div>
-              <TopNav />
             </header>
             {children}
           </div>

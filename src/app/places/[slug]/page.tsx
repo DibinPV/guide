@@ -12,12 +12,12 @@ export default async function PlacePage({ params }: { params: { slug: string } }
 
   return (
     <main>
-      <section className="text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary">Локация</p>
-        <div className="mt-2 text-xs uppercase tracking-[0.2em] text-primary">
+      <section className="page-hero">
+        <p className="page-kicker">Локация</p>
+        <div className="mt-2 text-xs uppercase tracking-[0.2em] text-primary-60">
           {place.city} · {place.country}
         </div>
-        <h2 className="mt-2 text-h2">{place.title}</h2>
+        <h2 className="page-title mt-2">{place.title}</h2>
         <Link className="text-xs text-soft hover:underline mt-2 inline-block" href="/places">
           Назад к списку
         </Link>
