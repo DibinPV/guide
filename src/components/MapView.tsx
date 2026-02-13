@@ -45,8 +45,8 @@ export default function MapView({ locations }: { locations: MapLocation[] }) {
     if (!containerRef.current || mapRef.current) return;
 
     const isSupported =
-      typeof maplibregl.supported === "function"
-        ? maplibregl.supported()
+      typeof (maplibregl as any).supported === "function"
+        ? (maplibregl as any).supported()
         : typeof (maplibregl as any).Map !== "undefined";
     if (!isSupported) {
       setStatus("WebGL недоступен — карта не может быть загружена.");
