@@ -219,6 +219,30 @@ p {
   border: 1px solid var(--color-neutral-200);
 }
 
+.input {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-neutral-200);
+  background: var(--color-white);
+  font-size: var(--text-body-s);
+}
+
+.button-ghost {
+  height: 40px;
+  padding: 0 var(--space-16);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-neutral-200);
+  background: var(--color-white);
+  color: var(--color-neutral-700);
+}
+
+.button-ghost.active {
+  border-color: var(--color-primary-700);
+  color: var(--color-primary-700);
+  background: var(--color-primary-100);
+}
+
 .border-neutral {
   border: 1px solid var(--color-neutral-200);
 }

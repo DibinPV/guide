@@ -4,6 +4,21 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: { allowedOrigins: ["*"] }
+  },
+  async headers() {
+    // Allow eval only in development to avoid CSP blocking map rendering.
+    if (process.env.NODE_ENV === "production") return [];
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "script-src 'self' 'unsafe-eval' 'unsafe-inline' https: http:; object-src 'none'; base-uri 'self';"
+          }
+        ]
+      }
+    ];
   }
 };
 
@@ -14,7 +29,7 @@ export default withPWA({
   disable: process.env.NODE_ENV === "development",
   runtimeCaching: [
     {
-      urlPattern: /^https:\/\/demotiles\.maplibre\.org\/.*$/,
+      urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*$/,
       handler: "CacheFirst",
       options: {
         cacheName: "map-tiles",

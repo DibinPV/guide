@@ -13,7 +13,28 @@ export type MapLocation = {
   lng: number;
 };
 
-const DEFAULT_STYLE = "https://demotiles.maplibre.org/style.json";
+const DEFAULT_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: [
+        "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      ],
+      tileSize: 256,
+      attribution: "© OpenStreetMap contributors"
+    }
+  },
+  layers: [
+    {
+      id: "osm",
+      type: "raster",
+      source: "osm"
+    }
+  ]
+} as const;
 
 export default function MapView({ locations }: { locations: MapLocation[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -22,6 +43,15 @@ export default function MapView({ locations }: { locations: MapLocation[] }) {
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+
+    const isSupported =
+      typeof maplibregl.supported === "function"
+        ? maplibregl.supported()
+        : typeof (maplibregl as any).Map !== "undefined";
+    if (!isSupported) {
+      setStatus("WebGL недоступен — карта не может быть загружена.");
+      return;
+    }
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -32,6 +62,11 @@ export default function MapView({ locations }: { locations: MapLocation[] }) {
 
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }));
+    map.on("load", () => map.resize());
+    map.on("error", (e) => {
+      console.error("Map error", e?.error || e);
+      setStatus("Не удалось загрузить карту");
+    });
 
     locations.forEach((loc) => {
       const el = document.createElement("div");
@@ -60,6 +95,28 @@ export default function MapView({ locations }: { locations: MapLocation[] }) {
     }
 
     return () => map.remove();
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Remove existing markers
+    const markers = (map as any)._codexMarkers as maplibregl.Marker[] | undefined;
+    if (markers && markers.length) {
+      markers.forEach((m) => m.remove());
+    }
+
+    const nextMarkers = locations.map((loc) => {
+      const el = document.createElement("div");
+      el.className = "map-marker";
+      return new maplibregl.Marker({ element: el })
+        .setLngLat([loc.lng, loc.lat])
+        .setPopup(new maplibregl.Popup().setHTML(`<strong>${loc.title}</strong>`))
+        .addTo(map);
+    });
+
+    (map as any)._codexMarkers = nextMarkers;
   }, [locations]);
 
   return (

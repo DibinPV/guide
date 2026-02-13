@@ -7,7 +7,8 @@ const items = [
   { href: "/", label: "Главная" },
   { href: "/tours", label: "Туры" },
   { href: "/places", label: "Локации" },
-  { href: "/map", label: "Карта" }
+  { href: "/map", label: "Карта" },
+  { href: "/feedback-stats", label: "Статистика" }
 ];
 
 export default function TopNav() {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAllPlaces, getPlace } from "@/lib/places";
+import FeedbackSection from "@/components/FeedbackSection";
 
 export async function generateStaticParams() {
   const places = await getAllPlaces();
@@ -43,6 +44,23 @@ export default async function PlacePage({ params }: { params: { slug: string } }
           </div>
         </section>
       ) : null}
+
+      <section className="section">
+        <div className="section-header">
+          <span className="section-marker" />
+          <h3 className="text-h3">Отзыв о месте</h3>
+        </div>
+        <div className="section-inner">
+          <FeedbackSection
+            title="Отзыв о месте"
+            buttonLabel="Оставить отзыв"
+            payload={{
+              target: "place",
+              place_slug: place.slug
+            }}
+          />
+        </div>
+      </section>
     </main>
   );
 }

@@ -1,6 +1,12 @@
 import Link from "next/link";
-import MapView, { MapLocation } from "@/components/MapView";
+import dynamic from "next/dynamic";
+import type { MapLocation } from "@/components/MapView";
 import { getAllPlaces } from "@/lib/places";
+
+const MapView = dynamic(() => import("@/components/MapView"), {
+  ssr: false,
+  loading: () => <div className="map-container" />
+});
 
 export default async function MapPage() {
   const places = await getAllPlaces();

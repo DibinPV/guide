@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAllTours, getTour } from "@/lib/tours";
 import { getPlace } from "@/lib/places";
 import { Badge } from "@/ui/Badge";
+import FeedbackSection from "@/components/FeedbackSection";
 
 function formatMode(mode: string) {
   switch (mode) {
@@ -165,6 +166,25 @@ export default async function TravelPage({
           </div>
         </section>
       ) : null}
+
+      <section className="section">
+        <div className="section-header">
+          <span className="section-marker" />
+          <h3 className="text-h3">Отзыв о прогулке</h3>
+        </div>
+        <div className="section-inner">
+          <FeedbackSection
+            title="Отзыв о прогулке"
+            buttonLabel="Оставить отзыв"
+            payload={{
+              target: "travel",
+              tour_slug: tour.slug,
+              day_number: day.day,
+              travel_index: idx
+            }}
+          />
+        </div>
+      </section>
     </main>
   );
 }

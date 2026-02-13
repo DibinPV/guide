@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAllTours, getTour } from "@/lib/tours";
 import { Badge } from "@/ui/Badge";
+import FeedbackSection from "@/components/FeedbackSection";
 
 export async function generateStaticParams() {
   const tours = await getAllTours();
@@ -44,6 +45,20 @@ export default async function TourPage({ params }: { params: { slug: string } })
               </div>
             </Link>
           ))}
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-header">
+          <span className="section-marker" />
+          <h3 className="text-h3">Отзыв о туре</h3>
+        </div>
+        <div className="section-inner">
+          <FeedbackSection
+            title="Отзыв о туре"
+            buttonLabel="Оставить отзыв"
+            payload={{ target: "tour", tour_slug: tour.slug }}
+          />
         </div>
       </section>
     </main>
