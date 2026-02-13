@@ -19,7 +19,7 @@ type Article = {
   id?: string;
   title: string;
   content_md: string;
-  images: string;
+  images: string | string[];
 };
 
 type Event = {
@@ -152,8 +152,8 @@ export default function TourForm({ mode, tourId }: Props) {
             ...emptyArticle,
             ...(event.article || {}),
             id: event.article?.id,
-            images: Array.isArray((event.article as Article | undefined)?.images)
-              ? (event.article as Article).images.join(", ")
+            images: Array.isArray(event.article?.images)
+              ? event.article.images.join(", ")
               : (event.article?.images ?? "")
           }
         }))
@@ -830,7 +830,11 @@ export default function TourForm({ mode, tourId }: Props) {
                                 Картинки (URL через запятую)
                                 <input
                                   className="input"
-                                  value={event.article.images}
+                                  value={
+                                    Array.isArray(event.article.images)
+                                      ? event.article.images.join(", ")
+                                      : event.article.images
+                                  }
                                   onChange={(e) => updateArticle(dayIndex, eventIndex, { images: e.target.value })}
                                 />
                               </label>
