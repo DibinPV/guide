@@ -34,7 +34,7 @@ const DEFAULT_STYLE = {
       source: "osm"
     }
   ]
-} as const;
+} as any;
 
 export default function MapView({ locations }: { locations: MapLocation[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
