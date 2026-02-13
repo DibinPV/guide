@@ -121,6 +121,13 @@ export default async function TravelPage({
   const fromPlace = await getPlace(fromStop.place);
   const toPlace = toStop ? await getPlace(toStop.place) : null;
   const travel = fromStop.travelToNext;
+  if (!travel) {
+    return (
+      <main>
+        <p>Переезд не найден.</p>
+      </main>
+    );
+  }
 
   return (
     <main>
