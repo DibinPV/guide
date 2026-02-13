@@ -1,48 +1,53 @@
 import Link from "next/link";
 import MapView, { MapLocation } from "@/components/MapView";
-import { getAllLocations } from "@/lib/content";
+import { getAllPlaces } from "@/lib/places";
 
 export default async function MapPage() {
-  const locations = await getAllLocations();
-  const mapped: MapLocation[] = locations.map((loc) => ({
-    lang: loc.lang,
-    slug: loc.slug,
-    title: loc.meta.title,
-    country: loc.meta.country,
-    lat: loc.meta.lat || 0,
-    lng: loc.meta.lng || 0
-  }));
+  const places = await getAllPlaces();
+  const mapped: MapLocation[] = places
+    .filter((place) => typeof place.lat === "number" && typeof place.lng === "number")
+    .map((place) => ({
+      lang: "ru",
+      slug: place.slug,
+      title: place.title,
+      country: place.country,
+      lat: place.lat || 0,
+      lng: place.lng || 0
+    }));
 
   return (
-    <main className="grid gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-moss">Map</p>
-          <h2 className="text-2xl font-display">Nearby and saved places</h2>
-        </div>
-        <Link className="text-sm underline" href="/">
-          Back home
+    <main>
+      <section className="text-center">
+        <p className="text-xs uppercase tracking-[0.3em] text-primary">Карта</p>
+        <h2 className="mt-2 text-h2">Места рядом и сохранённые</h2>
+        <Link className="text-xs text-soft hover:underline mt-2 inline-block" href="/">
+          На главную
         </Link>
-      </div>
+      </section>
 
-      <MapView locations={mapped} />
+      <section className="section">
+        <MapView locations={mapped} />
+      </section>
 
-      <section className="grid gap-3">
-        <h3 className="text-lg font-display">Locations</h3>
-        <div className="grid gap-2">
+      <section className="section">
+        <div className="section-header">
+          <span className="section-marker" />
+          <h3 className="text-h3">Локации</h3>
+        </div>
+        <div className="section-inner grid gap-2">
           {mapped.map((loc) => (
             <Link
               key={`${loc.lang}-${loc.slug}`}
-              href={`/${loc.lang}/${loc.slug}`}
-              className="flex items-center justify-between rounded-2xl border border-black/10 bg-white/70 px-4 py-3"
+              href={`/places/${loc.slug}`}
+              className="card card-link"
             >
-              <div>
-                <p className="text-sm font-semibold">{loc.title}</p>
-                <p className="text-xs text-black/60">{loc.country}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-strong">{loc.title}</p>
+                  <p className="text-xs text-soft">{loc.country}</p>
+                </div>
+                <span className="card-chevron">→</span>
               </div>
-              <span className="text-xs uppercase tracking-[0.2em] text-moss">
-                {loc.lang}
-              </span>
             </Link>
           ))}
         </div>

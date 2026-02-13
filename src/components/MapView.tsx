@@ -35,7 +35,7 @@ export default function MapView({ locations }: { locations: MapLocation[] }) {
 
     locations.forEach((loc) => {
       const el = document.createElement("div");
-      el.className = "w-3 h-3 rounded-full bg-sun shadow";
+      el.className = "map-marker";
       new maplibregl.Marker({ element: el })
         .setLngLat([loc.lng, loc.lat])
         .setPopup(new maplibregl.Popup().setHTML(`<strong>${loc.title}</strong>`))
@@ -43,18 +43,18 @@ export default function MapView({ locations }: { locations: MapLocation[] }) {
     });
 
     if (navigator.geolocation) {
-      setStatus("Locating you...");
+      setStatus("Определяем ваше местоположение...");
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
           new maplibregl.Marker({ color: "#2a5b4b" })
             .setLngLat([longitude, latitude])
-            .setPopup(new maplibregl.Popup().setHTML("You are here"))
+            .setPopup(new maplibregl.Popup().setHTML("Вы здесь"))
             .addTo(map);
           map.flyTo({ center: [longitude, latitude], zoom: 10 });
           setStatus("");
         },
-        () => setStatus("Location not available"),
+        () => setStatus("Не удалось определить местоположение"),
         { enableHighAccuracy: true, timeout: 8000 }
       );
     }
@@ -64,7 +64,7 @@ export default function MapView({ locations }: { locations: MapLocation[] }) {
 
   return (
     <div className="grid gap-3">
-      {status ? <p className="text-sm text-black/60">{status}</p> : null}
+      {status ? <p className="text-sm text-soft">{status}</p> : null}
       <div ref={containerRef} className="map-container" />
     </div>
   );

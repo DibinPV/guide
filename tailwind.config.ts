@@ -8,8 +8,9 @@ const config: Config = {
         ink: "#0b0b0e",
         sand: "#f2efe8",
         clay: "#c8b9a4",
-        moss: "#2a5b4b",
-        sun: "#f0b429"
+        moss: "#189e7c",
+        sun: "#ff8f49",
+        ocean: "#2457f5"
       },
       fontFamily: {
         display: ["\"Fraunces\"", "serif"],
