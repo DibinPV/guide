@@ -171,7 +171,7 @@ export default function TourForm({ mode, tourId }: Props) {
         days
       });
       const expanded: Record<number, boolean> = {};
-      days.forEach((day) => {
+      days.forEach((day: Day) => {
         expanded[day.day_number] = day.day_number === 1;
       });
       setExpandedDays(expanded);
