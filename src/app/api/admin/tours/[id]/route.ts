@@ -212,13 +212,22 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         .order("start_time", { ascending: true })
     : { data: [] };
 
-  const articleIds = (events ?? []).map((event) => event.article_id).filter(Boolean);
-  const { data: articles } = articleIds.length
-    ? await supabaseAdmin.from("event_articles").select("*").in("id", articleIds as string[])
-    : { data: [] };
+  type ArticleRow = {
+    id: string;
+    title: string;
+    lead: string | null;
+    content_md: string | null;
+    images: string[] | null;
+  };
 
-  const articlesById = new Map<string, (typeof articles)[number]>();
-  (articles ?? []).forEach((article) => articlesById.set(article.id, article));
+  const articleIds = (events ?? []).map((event) => event.article_id).filter(Boolean);
+  const { data: articleData } = articleIds.length
+    ? await supabaseAdmin.from("event_articles").select("*").in("id", articleIds as string[])
+    : ({ data: [] as ArticleRow[] } as { data: ArticleRow[] });
+
+  const articles = (articleData ?? []) as ArticleRow[];
+  const articlesById = new Map<string, ArticleRow>();
+  articles.forEach((article) => articlesById.set(article.id, article));
 
   const eventsByDay = new Map<string, typeof events>(dayIds.map((id) => [id, []]));
   (events ?? []).forEach((event) => {
