@@ -21,15 +21,26 @@ export default function FeedbackSection({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.2em] text-primary">{title}</p>
-        <button className="button-ghost" type="button" onClick={() => setOpen((v) => !v)}>
-          {open ? "Скрыть" : buttonLabel}
+    <div className="card feedback-card">
+      <div className="feedback-header">
+        <div>
+          <p className="feedback-kicker">Отзыв</p>
+          <h3 className="feedback-title">{title}</h3>
+          <p className="feedback-subtitle">Это займет минуту и помогает улучшать маршруты.</p>
+        </div>
+        <button className="button-primary" type="button" onClick={() => setOpen((v) => !v)}>
+          {open ? "Скрыть форму" : buttonLabel}
         </button>
       </div>
+      {!open ? (
+        <div className="feedback-hints">
+          <span className="chip">Лайк / дизлайк</span>
+          <span className="chip">Оценка 1–5</span>
+          <span className="chip">Комментарий</span>
+        </div>
+      ) : null}
       {open ? (
-        <div className="section-inner">
+        <div className="feedback-body">
           <FeedbackForm title={title} payload={payload} />
         </div>
       ) : null}

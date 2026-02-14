@@ -48,20 +48,35 @@ export default async function TourPage({ params }: { params: { slug: string } })
   return (
     <main>
       <section className="section">
+        <div className="mb-4 text-sm text-soft">
+          <Link href="/tours">← Все туры</Link>
+        </div>
         <div className="card tour-hero">
           <div className="tour-hero-media">
             <img src={tour.cover_url || "/images/placeholder-1.svg"} alt={tour.title} />
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-primary">Тур</p>
-            <h2 className="mt-2 text-h2">{tour.title}</h2>
-            <p className="text-sm text-muted mt-2">{tour.city} · {tour.country}</p>
-            {tour.summary ? <p className="text-sm text-soft mt-3">{tour.summary}</p> : null}
+          <div className="tour-hero-body">
+            <div className="tour-hero-meta">
+              <p className="text-xs uppercase tracking-[0.2em] text-primary">Тур</p>
+              <span className="chip">{tour.city} · {tour.country}</span>
+              <span className="chip">Оффлайн</span>
+            </div>
+            <h2 className="tour-hero-title mt-2">{tour.title}</h2>
+            {tour.summary ? <p className="tour-hero-summary text-sm text-soft mt-3">{tour.summary}</p> : null}
             <div className="tour-hero-stats">
               <span className="chip">Дней: {days.length}</span>
               <span className="chip">Событий: {summary.totalEvents}</span>
               <span className="chip">Длительность: {formatMinutes(summary.totalMinutes)}</span>
-              <span className="chip">Оффлайн</span>
+            </div>
+            <div className="tour-hero-actions">
+              {firstDay ? (
+                <Link href={`/tours/${tour.slug}/day/${firstDay}`} className="button-primary">
+                  Начать маршрут
+                </Link>
+              ) : null}
+              <Link href="/map" className="button-secondary">
+                Открыть карту
+              </Link>
             </div>
           </div>
         </div>
@@ -91,12 +106,16 @@ export default async function TourPage({ params }: { params: { slug: string } })
                       <h4 className="text-h3">{day.title}</h4>
                       {day.summary ? <p className="text-sm text-muted">{day.summary}</p> : null}
                       <div className="grid gap-2">
-                        {previewList.map((event) => (
-                          <div key={event.id} className="tour-day-preview-item">
-                            <span />
-                            <div>{event.start_time} · {event.title}</div>
-                          </div>
-                        ))}
+                        {previewList.length ? (
+                          previewList.map((event) => (
+                            <div key={event.id} className="tour-day-preview-item">
+                              <span />
+                              <div>{event.start_time} · {event.title}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-soft">События скоро появятся.</p>
+                        )}
                       </div>
                       <div className="mt-3 flex justify-end">
                         <span className="card-chevron">→</span>
