@@ -63,8 +63,7 @@ export default async function TourEventPage({
     : null;
   const htmlContent = processed ? String(processed) : "";
   const images = article?.images || [];
-  const heroImage = images[0];
-  const gallery = images.slice(1);
+  const gallery = images;
 
   return (
     <main>
@@ -80,18 +79,15 @@ export default async function TourEventPage({
         </Link>
       </section>
 
-      {heroImage ? (
+      {gallery.length ? (
         <section className="section">
-          <div className="article-hero">
-            <img src={heroImage} alt={event.title} />
-          </div>
+          <ArticleGallery images={gallery} title={event.title} />
         </section>
       ) : null}
 
       <section className="section">
         <div className="article-layout">
           <div className="article-body">
-            <ArticleGallery images={images} title={event.title} />
             <article className="article-shell">
               {article?.lead ? <p className="article-lead">{article.lead}</p> : null}
               {htmlContent ? (
@@ -101,21 +97,6 @@ export default async function TourEventPage({
               )}
             </article>
 
-            {gallery.length > 0 ? (
-              <section className="section">
-                <div className="section-header">
-                  <span className="section-marker" />
-                  <h3 className="text-h3">Галерея</h3>
-                </div>
-                <div className="section-inner article-gallery">
-                  {gallery.map((src) => (
-                    <div key={src} className="article-gallery-card">
-                      <img src={src} alt={event.title} />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
           </div>
 
           <aside className="article-aside">

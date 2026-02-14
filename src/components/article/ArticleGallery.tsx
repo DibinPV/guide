@@ -19,16 +19,10 @@ export default function ArticleGallery({ images, title }: Props) {
 
   return (
     <div className="gallery-shell">
-      <div className="gallery-strip">
-        {images.slice(0, 3).map((src, idx) => (
-          <button key={src} type="button" className="gallery-thumb" onClick={() => open(idx)}>
-            <img src={src} alt={title} />
-            {idx === 2 && images.length > 3 ? (
-              <span className="gallery-count">{images.length}</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
+      <button type="button" className="gallery-thumb gallery-thumb-single" onClick={() => open(0)}>
+        <img src={images[0]} alt={title} />
+        {images.length > 1 ? <span className="gallery-count">{images.length}</span> : null}
+      </button>
 
       {activeIndex !== null ? (
         <div className="gallery-modal" role="dialog" aria-modal="true">
