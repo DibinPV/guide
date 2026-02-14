@@ -11,7 +11,7 @@ export type TourEventArticle = {
 
 export type TourEvent = {
   id: string;
-  type: "excursion" | "travel";
+  type: "excursion" | "travel" | "pause";
   start_time: string;
   duration_minutes: number;
   title: string;

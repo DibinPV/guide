@@ -106,7 +106,7 @@ export default async function TourEventPage({
                 <div className="article-meta-card">
                   <p className="text-xs uppercase tracking-[0.2em] text-primary">Тип</p>
                   <h4 className="mt-2 text-h3">
-                    {event.type === "excursion" ? "Экскурсия" : "Перемещение"}
+                    {event.type === "excursion" ? "Экскурсия" : event.type === "travel" ? "Переезд" : "Перерыв"}
                   </h4>
                 </div>
                 <div className="article-meta-card">

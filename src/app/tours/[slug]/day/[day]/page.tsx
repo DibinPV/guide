@@ -156,8 +156,8 @@ export default async function TourDayPage({ params }: { params: { slug: string; 
                   className="timeline-card"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`timeline-badge ${event.type === "travel" ? "travel" : ""}`}>
-                      {event.type === "excursion" ? "ЭКСКУРСИЯ" : "ПЕРЕЕЗД"}
+                    <span className={`timeline-badge ${event.type === "travel" ? "travel" : event.type === "pause" ? "pause" : ""}`}>
+                      {event.type === "excursion" ? "ЭКСКУРСИЯ" : event.type === "travel" ? "ПЕРЕЕЗД" : "ПЕРЕРЫВ"}
                     </span>
                     {event.type === "travel" && event.mode ? (
                       <span className="chip">{formatMode(event.mode)}</span>
@@ -171,10 +171,12 @@ export default async function TourDayPage({ params }: { params: { slug: string; 
                     <p className="text-sm text-soft mt-2">
                       {excursionPlace ? `${excursionPlace.title} · ${excursionPlace.city}` : event.place_slug || "Без места"}
                     </p>
-                  ) : (
+                  ) : event.type === "travel" ? (
                     <p className="text-sm text-soft mt-2">
                       {fromPlace ? fromPlace.title : event.from_place_slug || "Откуда"} → {toPlace ? toPlace.title : event.to_place_slug || "Куда"}
                     </p>
+                  ) : (
+                    <p className="text-sm text-soft mt-2">Свободное время</p>
                   )}
                   <div className="mt-3 event-cta">Читать историю →</div>
                 </Link>
