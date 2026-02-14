@@ -172,7 +172,14 @@ export default function TourForm({ mode, tourId }: Props) {
   const [loading, setLoading] = useState<boolean>(mode === "edit");
   const [dirty, setDirty] = useState<boolean>(false);
   const [expandedDays, setExpandedDays] = useState<Record<number, boolean>>({});
+  const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
+  const [previewEvents, setPreviewEvents] = useState<Record<string, boolean>>({});
+  const [placeSlugTouched, setPlaceSlugTouched] = useState<Record<string, boolean>>({});
   const [slugTouched, setSlugTouched] = useState<boolean>(false);
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
+  const [activePanel, setActivePanel] = useState<"settings" | "schedule">("schedule");
+  const [openDayMenu, setOpenDayMenu] = useState<number | null>(null);
+  const eventKey = (dayIndex: number, eventIndex: number) => `d${dayIndex}-e${eventIndex}`;
 
   useEffect(() => {
     if (mode !== "edit" || !tourId) return;
@@ -222,6 +229,10 @@ export default function TourForm({ mode, tourId }: Props) {
         expanded[day.day_number] = day.day_number === 1;
       });
       setExpandedDays(expanded);
+      const firstEventKey = days[0]?.events[0] ? eventKey(0, 0) : null;
+      setExpandedEvents(firstEventKey ? { [firstEventKey]: true } : {});
+      setSelectedDayIndex(0);
+      setActivePanel("schedule");
       setLoading(false);
     })();
     return () => {
@@ -249,10 +260,67 @@ export default function TourForm({ mode, tourId }: Props) {
         ]
       }));
       setExpandedDays({ 1: true });
+      setExpandedEvents({ [eventKey(0, 0)]: true });
+      setSelectedDayIndex(0);
+      setActivePanel("schedule");
     }
   }, [mode, form.days.length]);
 
   const markDirty = () => setDirty(true);
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const inlineMd = (value: string) =>
+    value
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/`(.+?)`/g, "<code>$1</code>");
+
+  const markdownPreview = (value: string) => {
+    const safe = escapeHtml(value || "");
+    const lines = safe.split("\n");
+    let html = "";
+    let inList = false;
+    lines.forEach((line) => {
+      if (/^[-*]\s+/.test(line)) {
+        if (!inList) {
+          html += "<ul>";
+          inList = true;
+        }
+        html += `<li>${inlineMd(line.replace(/^[-*]\s+/, ""))}</li>`;
+        return;
+      }
+      if (inList) {
+        html += "</ul>";
+        inList = false;
+      }
+      if (/^###\s+/.test(line)) {
+        html += `<h4>${inlineMd(line.replace(/^###\s+/, ""))}</h4>`;
+        return;
+      }
+      if (/^##\s+/.test(line)) {
+        html += `<h3>${inlineMd(line.replace(/^##\s+/, ""))}</h3>`;
+        return;
+      }
+      if (/^#\s+/.test(line)) {
+        html += `<h2>${inlineMd(line.replace(/^#\s+/, ""))}</h2>`;
+        return;
+      }
+      if (line.trim() === "") {
+        html += "<br/>";
+        return;
+      }
+      html += `<p>${inlineMd(line)}</p>`;
+    });
+    if (inList) html += "</ul>";
+    return html;
+  };
 
   const updateDay = (index: number, patch: Partial<Day>) => {
     setForm((prev) => {
@@ -318,6 +386,18 @@ export default function TourForm({ mode, tourId }: Props) {
       }));
       return { ...prev, days };
     });
+    setSelectedDayIndex((prev) => Math.max(0, Math.min(prev, form.days.length - 2)));
+    markDirty();
+  };
+
+  const toggleDayActive = (index: number) => {
+    setForm((prev) => {
+      const days = [...prev.days];
+      const day = days[index];
+      const isInactive = Boolean((day as Day & { is_inactive?: boolean }).is_inactive);
+      days[index] = { ...day, is_inactive: !isInactive } as Day & { is_inactive?: boolean };
+      return { ...prev, days };
+    });
     markDirty();
   };
 
@@ -329,6 +409,42 @@ export default function TourForm({ mode, tourId }: Props) {
       days[dayIndex] = { ...day, events };
       return { ...prev, days };
     });
+    setExpandedEvents((prev) => ({ ...prev, [eventKey(dayIndex, form.days[dayIndex]?.events.length || 0)]: true }));
+    markDirty();
+  };
+
+  const addEventTemplate = (dayIndex: number, template: "excursion" | "travel" | "pause") => {
+    const templateEvent: Event =
+      template === "travel"
+        ? {
+            ...emptyEvent,
+            type: "travel",
+            title: "Переезд",
+            summary: "Короткое описание маршрута",
+            mode: "walk"
+          }
+        : template === "pause"
+          ? {
+              ...emptyEvent,
+              type: "excursion",
+              title: "Пауза / обед",
+              summary: "Перерыв по маршруту",
+              duration_minutes: 45
+            }
+          : {
+              ...emptyEvent,
+              type: "excursion",
+              title: "Экскурсия",
+              summary: "Короткое описание экскурсии"
+            };
+    setForm((prev) => {
+      const days = [...prev.days];
+      const day = days[dayIndex];
+      const events = [...day.events, { ...templateEvent, order_index: day.events.length }];
+      days[dayIndex] = { ...day, events };
+      return { ...prev, days };
+    });
+    setExpandedEvents((prev) => ({ ...prev, [eventKey(dayIndex, form.days[dayIndex]?.events.length || 0)]: true }));
     markDirty();
   };
 
@@ -387,6 +503,28 @@ export default function TourForm({ mode, tourId }: Props) {
     markDirty();
   };
 
+  const toggleEvent = (dayIndex: number, eventIndex: number) => {
+    const key = eventKey(dayIndex, eventIndex);
+    setExpandedEvents((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const togglePreview = (dayIndex: number, eventIndex: number) => {
+    const key = eventKey(dayIndex, eventIndex);
+    setPreviewEvents((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const sortEventsByTime = (dayIndex: number) => {
+    setForm((prev) => {
+      const days = [...prev.days];
+      const day = days[dayIndex];
+      const events = [...day.events].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+      const normalized = events.map((event, idx) => ({ ...event, order_index: idx }));
+      days[dayIndex] = { ...day, events: normalized };
+      return { ...prev, days };
+    });
+    markDirty();
+  };
+
   const toggleDay = (dayNumber: number) => {
     setExpandedDays((prev) => ({ ...prev, [dayNumber]: !prev[dayNumber] }));
   };
@@ -430,20 +568,26 @@ export default function TourForm({ mode, tourId }: Props) {
     }
 
     const payload = {
-      tour: { ...form.tour, slug: form.tour.slug.trim().toLowerCase().replace(/\s+/g, "-") },
-      days: form.days.map((day) => ({
+      tour: { ...form.tour, slug: slugify(form.tour.slug || form.tour.title) },
+      days: form.days.map((day, dayIndex) => ({
         id: day.id,
         day_number: day.day_number,
         title: day.title,
         summary: day.summary,
-        events: day.events.map((event) => ({
+        events: day.events.map((event, eventIndex) => {
+          const key = eventKey(dayIndex, eventIndex);
+          const placeSlug =
+            event.type === "excursion"
+              ? (placeSlugTouched[key] ? event.place_slug : slugify(event.place_slug || event.title))
+              : event.place_slug;
+          return ({
           id: event.id,
           type: event.type,
           start_time: event.start_time,
           duration_minutes: event.duration_minutes,
           title: event.title,
           summary: event.summary,
-          place_slug: event.place_slug,
+          place_slug: placeSlug,
           from_place_slug: event.from_place_slug,
           to_place_slug: event.to_place_slug,
           mode: event.mode,
@@ -459,7 +603,8 @@ export default function TourForm({ mode, tourId }: Props) {
                   .map((item) => item.trim())
                   .filter(Boolean)
           }
-        }))
+        });
+        })
       }))
     };
 
@@ -532,28 +677,127 @@ export default function TourForm({ mode, tourId }: Props) {
   }
 
   return (
-    <div className="grid gap-6">
-      <div className="card sticky top-4 z-10">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm text-soft">
-            {dirty ? "Есть несохраненные изменения" : "Все изменения сохранены"}
-          </div>
-          <div className="flex items-center gap-3">
-            <button type="button" className="button-primary" onClick={onSubmit}>
-              Сохранить
+    <div className="admin-layout">
+      <aside className="admin-sidebar">
+        <div className="card admin-nav-card">
+          <p className="text-xs uppercase tracking-[0.2em] text-primary">Навигация</p>
+          <div className="admin-steps">
+            <button
+              type="button"
+              className={`admin-step ${activePanel === "settings" ? "active" : ""}`}
+              onClick={() => setActivePanel("settings")}
+            >
+              Настройки тура
             </button>
-            {mode === "edit" ? (
-              <button type="button" className="button-ghost" onClick={onDelete}>
-                Удалить
+            <button
+              type="button"
+              className={`admin-step ${activePanel === "schedule" ? "active" : ""}`}
+              onClick={() => setActivePanel("schedule")}
+            >
+              Дни и события
+            </button>
+          </div>
+          <button type="button" className="button-ghost admin-add-day" onClick={addDay}>
+            + Добавить день
+          </button>
+          {activePanel === "schedule" ? (
+            <div className="admin-nav-days">
+              {form.days.length === 0 ? (
+                <div className="admin-empty">
+                  <p className="text-sm text-muted">Дней пока нет.</p>
+                  <button type="button" className="button-primary" onClick={addDay}>
+                    Создать день
+                  </button>
+                </div>
+              ) : null}
+              {form.days.map((day, dayIndex) => (
+                <div key={`nav-${day.day_number}`} className={`admin-nav-day ${dayIndex === selectedDayIndex ? "active" : ""}`}>
+                  <div className="admin-nav-day-row">
+                    <button
+                      type="button"
+                      className="admin-nav-day-title"
+                      onClick={() => setSelectedDayIndex(dayIndex)}
+                    >
+                      День {day.day_number}
+                    </button>
+                    <div className="admin-day-menu">
+                      <button
+                        type="button"
+                        className="admin-day-menu-trigger"
+                        onClick={() => setOpenDayMenu((prev) => (prev === dayIndex ? null : dayIndex))}
+                        aria-label="Меню дня"
+                      >
+                        ⋯
+                      </button>
+                      {openDayMenu === dayIndex ? (
+                        <div className="admin-day-menu-panel">
+                          <button type="button" onClick={() => { copyDay(dayIndex); setOpenDayMenu(null); }}>
+                            Копировать день
+                          </button>
+                          <button type="button" onClick={() => { toggleDayActive(dayIndex); setOpenDayMenu(null); }}>
+                            Сделать неактивным
+                          </button>
+                          <button type="button" onClick={() => { removeDay(dayIndex); setOpenDayMenu(null); }}>
+                            Удалить день
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                  {dayIndex === selectedDayIndex ? (
+                    <div className="admin-nav-events">
+                      {day.events.map((event, eventIndex) => (
+                        <a
+                          key={`nav-${day.day_number}-${eventIndex}`}
+                          href={`#day-${day.day_number}-event-${eventIndex}`}
+                          className="admin-nav-event"
+                        >
+                          {event.start_time} · {event.title || "Без названия"}
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="admin-side-actions">
+            <div className="admin-side-stats">
+              <div>
+                <p className="text-xs text-soft">Дней</p>
+                <strong>{overallSummary.days}</strong>
+              </div>
+              <div>
+                <p className="text-xs text-soft">Событий</p>
+                <strong>{overallSummary.events}</strong>
+              </div>
+              <div>
+                <p className="text-xs text-soft">Длительность</p>
+                <strong>{overallSummary.duration}</strong>
+              </div>
+            </div>
+            <div className="text-xs text-soft">
+              {dirty ? "Есть несохраненные изменения" : "Все изменения сохранены"}
+            </div>
+            <div className="admin-side-buttons">
+              <button type="button" className="button-primary" onClick={onSubmit}>
+                Сохранить
               </button>
-            ) : null}
-            <span className="text-sm text-soft">{status}</span>
+              {mode === "edit" ? (
+                <button type="button" className="button-ghost" onClick={onDelete}>
+                  Удалить
+                </button>
+              ) : null}
+            </div>
+            <span className="text-xs text-soft">{status}</span>
           </div>
         </div>
-      </div>
+      </aside>
 
-      <div className="card">
-        <div className="grid gap-4 md:grid-cols-2">
+      <div className="admin-content grid gap-6">
+      {activePanel === "settings" ? (
+        <div className="card admin-section">
+          <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm">
             Ссылка (slug)
             <input
@@ -646,46 +890,44 @@ export default function TourForm({ mode, tourId }: Props) {
           </label>
         </div>
       </div>
+      ) : null}
 
-      <div className="card">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {activePanel === "schedule" ? (
+      <div className="admin-schedule-panel">
+        <div className="admin-schedule-header">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-primary">События дня</p>
             <p className="text-sm text-soft mt-1">Добавляйте экскурсии и перемещения в хронологии.</p>
-            <p className="text-sm text-soft mt-1">Всего: {overallSummary.days} дней · {overallSummary.events} событий · {overallSummary.duration}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="button" className="button-ghost" onClick={expandAll}>
-              Развернуть все
-            </button>
-            <button type="button" className="button-ghost" onClick={collapseAll}>
-              Свернуть все
-            </button>
-            <button type="button" className="button-ghost" onClick={addDay}>
-              Добавить день
-            </button>
           </div>
         </div>
 
+        <div className="admin-schedule-summary" />
+
         <div className="mt-6 grid gap-4">
-          {form.days.map((day, dayIndex) => {
+          {form.days[selectedDayIndex] ? (() => {
+            const day = form.days[selectedDayIndex];
+            const dayIndex = selectedDayIndex;
             const summary = daySummaries[dayIndex];
             const isOpen = expandedDays[day.day_number] ?? true;
             return (
-              <div key={`day-${dayIndex}`} className="card border-neutral">
-                <button type="button" className="flex w-full items-center justify-between" onClick={() => toggleDay(day.day_number)}>
-                  <div className="text-left">
-                    <p className="text-xs uppercase tracking-[0.2em] text-primary">День {day.day_number}</p>
-                    <h4 className="mt-1 text-h3">{day.title || "Без названия"}</h4>
-                    <p className="text-sm text-soft mt-1">Событий: {summary.events} · {summary.duration}</p>
-                  </div>
-                  <span className="text-sm text-soft">{isOpen ? "Свернуть" : "Развернуть"}</span>
-                </button>
+              <div key={`day-${dayIndex}`} className="grid gap-4">
+                <div id={`day-${day.day_number}`} className="card border-neutral admin-day-settings">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between"
+                    onClick={() => toggleDay(day.day_number)}
+                  >
+                    <div className="text-left">
+                      <p className="text-xs uppercase tracking-[0.2em] text-primary">День {day.day_number}</p>
+                      <h4 className="mt-1 text-h3">{day.title || "Без названия"}</h4>
+                      <p className="text-sm text-soft mt-1">Событий: {summary.events} · {summary.duration}</p>
+                    </div>
+                    <span className="text-sm text-soft">{isOpen ? "Свернуть" : "Развернуть"}</span>
+                  </button>
 
-                {isOpen ? (
-                  <div className="mt-6">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="grid gap-3 md:grid-cols-3 flex-1">
+                  {isOpen ? (
+                    <div className="mt-6">
+                      <div className="grid gap-3 md:grid-cols-3">
                         <label className="grid gap-2 text-sm">
                           День
                           <input
@@ -714,189 +956,285 @@ export default function TourForm({ mode, tourId }: Props) {
                           />
                         </label>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <button type="button" className="button-ghost" onClick={() => copyDay(dayIndex)}>
-                          Копировать день
-                        </button>
-                        <button type="button" className="button-ghost" onClick={() => removeDay(dayIndex)}>
-                          Удалить день
-                        </button>
-                      </div>
                     </div>
+                  ) : null}
+                </div>
 
-                    <div className="mt-4">
-                      <button type="button" className="button-ghost" onClick={() => addEvent(dayIndex)}>
-                        Добавить событие
+                <div className="card border-neutral admin-events-section">
+                    <div className="admin-event-toolbar">
+                      <div className="admin-event-templates">
+                        <button type="button" className="button-ghost" onClick={() => addEvent(dayIndex)}>
+                          + Событие
+                        </button>
+                          <button type="button" className="button-ghost" onClick={() => addEventTemplate(dayIndex, "excursion")}>
+                            Экскурсия
+                          </button>
+                          <button type="button" className="button-ghost" onClick={() => addEventTemplate(dayIndex, "travel")}>
+                            Переезд
+                          </button>
+                          <button type="button" className="button-ghost" onClick={() => addEventTemplate(dayIndex, "pause")}>
+                            Пауза
+                          </button>
+                        </div>
+                      <button type="button" className="button-ghost" onClick={() => sortEventsByTime(dayIndex)}>
+                        Отсортировать по времени
                       </button>
                     </div>
+
+                    <div className="admin-timeline">
+                        {day.events.map((event, eventIndex) => (
+                          <a
+                            key={`timeline-${day.day_number}-${eventIndex}`}
+                            href={`#day-${day.day_number}-event-${eventIndex}`}
+                            className={`admin-timeline-item ${event.type}`}
+                          >
+                            <span className="dot" />
+                            <span className="time">{event.start_time}</span>
+                          </a>
+                        ))}
+                      </div>
 
                     <div className="mt-6 grid gap-4">
                       {day.events.map((event, eventIndex) => (
                         <div
                           key={`event-${eventIndex}`}
-                          className={`card-compact border-neutral ${hasOverlap(day.events, eventIndex) ? "border-red-300" : ""}`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="grid gap-3 md:grid-cols-4 flex-1">
-                              <label className="grid gap-2 text-sm">
-                                Тип события
-                                <select
-                                  className="input"
-                                  value={event.type}
-                                  onChange={(e) => updateEvent(dayIndex, eventIndex, { type: e.target.value as Event["type"] })}
-                                >
-                                  <option value="excursion">Экскурсия</option>
-                                  <option value="travel">Перемещение</option>
-                                </select>
-                              </label>
-                              <label className="grid gap-2 text-sm">
-                                Начало
-                                <input
-                                  className="input"
-                                  type="time"
-                                  value={event.start_time}
-                                  onChange={(e) => updateEvent(dayIndex, eventIndex, { start_time: e.target.value })}
-                                />
-                              </label>
-                              <label className="grid gap-2 text-sm">
-                                Длительность (мин)
-                                <input
-                                  className="input"
-                                  type="number"
-                                  min={1}
-                                  value={event.duration_minutes}
-                                  onChange={(e) => updateEvent(dayIndex, eventIndex, { duration_minutes: Number(e.target.value) })}
-                                />
-                              </label>
-                              <label className="grid gap-2 text-sm">
-                                Заголовок
-                                <input
-                                  className="input"
-                                  value={event.title}
-                                  onChange={(e) => updateEvent(dayIndex, eventIndex, { title: e.target.value })}
-                                />
-                              </label>
-                              <label className="grid gap-2 text-sm md:col-span-4">
-                                Короткое описание
-                                <textarea
-                                  className="input"
-                                  rows={2}
-                                  value={event.summary}
-                                  onChange={(e) => updateEvent(dayIndex, eventIndex, { summary: e.target.value })}
-                                />
-                              </label>
+                          id={`day-${day.day_number}-event-${eventIndex}`}
+                            className={`card-compact border-neutral admin-event-card ${hasOverlap(day.events, eventIndex) ? "border-red-300" : ""}`}
+                          >
+                          <button
+                            type="button"
+                            className="admin-event-header"
+                            onClick={() => toggleEvent(dayIndex, eventIndex)}
+                          >
+                            <div className="admin-event-meta">
+                              <span className={`event-badge ${event.type}`}>
+                                {event.type === "excursion" ? "Экскурсия" : "Перемещение"}
+                              </span>
+                              <span className="text-sm text-soft">{event.start_time}</span>
+                              <span className="text-sm text-soft">{formatMinutes(event.duration_minutes)}</span>
+                              <span className="admin-event-title">{event.title || "Без названия"}</span>
                             </div>
-                            <div className="flex flex-col gap-2">
-                              <button type="button" className="button-ghost" onClick={() => moveEvent(dayIndex, eventIndex, "up")}>
-                                Вверх
-                              </button>
-                              <button type="button" className="button-ghost" onClick={() => moveEvent(dayIndex, eventIndex, "down")}>
-                                Вниз
-                              </button>
-                              <button type="button" className="button-ghost" onClick={() => removeEvent(dayIndex, eventIndex)}>
-                                Удалить
-                              </button>
+                            <div className="admin-event-status">
+                              {!event.summary ? <span className="status-pill warn">нет описания</span> : null}
+                              {!event.article?.content_md ? <span className="status-pill warn">нет статьи</span> : null}
+                              {!event.article?.images ? <span className="status-pill warn">нет фото</span> : null}
+                              <span className="text-xs text-soft">
+                                {expandedEvents[eventKey(dayIndex, eventIndex)] ? "Свернуть" : "Развернуть"}
+                              </span>
                             </div>
-                          </div>
+                          </button>
 
-                          {hasOverlap(day.events, eventIndex) ? (
-                            <p className="text-xs text-red-600 mt-2">Время пересекается с другим событием.</p>
-                          ) : null}
+                          {expandedEvents[eventKey(dayIndex, eventIndex)] ? (
+                            <>
+                              <div className="admin-event-context">
+                                <span className="chip">День {day.day_number}</span>
+                                <span className={`chip ${event.type}`}>{event.type === "excursion" ? "Экскурсия" : "Перемещение"}</span>
+                                <span className="chip">{event.start_time}</span>
+                                <span className="chip">{formatMinutes(event.duration_minutes)}</span>
+                                {event.type === "excursion" && event.place_slug ? <span className="chip">{event.place_slug}</span> : null}
+                              </div>
+                              <div className="admin-event-body">
+                                <div className="grid gap-3 md:grid-cols-4 flex-1">
+                                  <label className="grid gap-2 text-sm">
+                                    Тип события
+                                    <select
+                                      className="input"
+                                      value={event.type}
+                                      onChange={(e) => updateEvent(dayIndex, eventIndex, { type: e.target.value as Event["type"] })}
+                                    >
+                                      <option value="excursion">Экскурсия</option>
+                                      <option value="travel">Перемещение</option>
+                                    </select>
+                                  </label>
+                                  <label className="grid gap-2 text-sm">
+                                    Начало
+                                    <input
+                                      className="input"
+                                      type="time"
+                                      value={event.start_time}
+                                      onChange={(e) => updateEvent(dayIndex, eventIndex, { start_time: e.target.value })}
+                                    />
+                                  </label>
+                                  <label className="grid gap-2 text-sm">
+                                    Длительность (мин)
+                                    <input
+                                      className="input"
+                                      type="number"
+                                      min={1}
+                                      value={event.duration_minutes}
+                                      onChange={(e) => updateEvent(dayIndex, eventIndex, { duration_minutes: Number(e.target.value) })}
+                                    />
+                                  </label>
+                                  <label className="grid gap-2 text-sm">
+                                    Заголовок
+                                    <input
+                                      className="input"
+                                      value={event.title}
+                                      onChange={(e) => {
+                                        const title = e.target.value;
+                                        const key = eventKey(dayIndex, eventIndex);
+                                        updateEvent(dayIndex, eventIndex, {
+                                          title,
+                                          place_slug:
+                                            event.type === "excursion" && !placeSlugTouched[key]
+                                              ? slugify(title)
+                                              : event.place_slug
+                                        });
+                                      }}
+                                    />
+                                  </label>
+                                  <label className="grid gap-2 text-sm md:col-span-4">
+                                    Короткое описание
+                                    <textarea
+                                      className="input"
+                                      rows={2}
+                                      value={event.summary}
+                                      onChange={(e) => updateEvent(dayIndex, eventIndex, { summary: e.target.value })}
+                                    />
+                                  </label>
+                                </div>
+                                <div className="admin-event-actions">
+                                  <button type="button" className="button-ghost" onClick={() => moveEvent(dayIndex, eventIndex, "up")}>
+                                    Вверх
+                                  </button>
+                                  <button type="button" className="button-ghost" onClick={() => moveEvent(dayIndex, eventIndex, "down")}>
+                                    Вниз
+                                  </button>
+                                  <button type="button" className="button-ghost" onClick={() => removeEvent(dayIndex, eventIndex)}>
+                                    Удалить
+                                  </button>
+                                </div>
+                              </div>
 
-                          <div className="mt-4 grid gap-3 md:grid-cols-3">
-                            {event.type === "excursion" ? (
-                              <label className="grid gap-2 text-sm md:col-span-2">
-                                Place slug
-                                <input
-                                  className={`input ${event.place_slug ? "" : "border-red-300"}`}
-                                  list="place-slugs"
-                                  value={event.place_slug}
-                                  onChange={(e) => updateEvent(dayIndex, eventIndex, { place_slug: e.target.value })}
-                                  placeholder="goreme-open-air"
-                                />
-                              </label>
-                            ) : (
-                              <>
-                                <label className="grid gap-2 text-sm">
-                                  Откуда (slug)
-                                  <input
-                                    className="input"
-                                    list="place-slugs"
-                                    value={event.from_place_slug}
-                                    onChange={(e) => updateEvent(dayIndex, eventIndex, { from_place_slug: e.target.value })}
-                                  />
-                                </label>
-                                <label className="grid gap-2 text-sm">
-                                  Куда (slug)
-                                  <input
-                                    className="input"
-                                    list="place-slugs"
-                                    value={event.to_place_slug}
-                                    onChange={(e) => updateEvent(dayIndex, eventIndex, { to_place_slug: e.target.value })}
-                                  />
-                                </label>
-                                <label className="grid gap-2 text-sm">
-                                  Транспорт
-                                  <select
-                                    className="input"
-                                    value={event.mode}
-                                    onChange={(e) => updateEvent(dayIndex, eventIndex, { mode: e.target.value })}
+                              {hasOverlap(day.events, eventIndex) ? (
+                                <p className="text-xs text-red-600 mt-2">Время пересекается с другим событием.</p>
+                              ) : null}
+
+                              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                                {event.type === "excursion" ? (
+                                  <label className="grid gap-2 text-sm md:col-span-2">
+                                    Place slug
+                                    <input
+                                      className={`input ${event.place_slug ? "" : "border-red-300"}`}
+                                      list="place-slugs"
+                                      value={event.place_slug}
+                                      onChange={(e) => {
+                                        const key = eventKey(dayIndex, eventIndex);
+                                        setPlaceSlugTouched((prev) => ({ ...prev, [key]: true }));
+                                        updateEvent(dayIndex, eventIndex, { place_slug: e.target.value });
+                                      }}
+                                      placeholder="goreme-open-air"
+                                    />
+                                  </label>
+                                ) : (
+                                  <>
+                                    <label className="grid gap-2 text-sm">
+                                      Откуда (slug)
+                                      <input
+                                        className="input"
+                                        list="place-slugs"
+                                        value={event.from_place_slug}
+                                        onChange={(e) => updateEvent(dayIndex, eventIndex, { from_place_slug: e.target.value })}
+                                      />
+                                    </label>
+                                    <label className="grid gap-2 text-sm">
+                                      Куда (slug)
+                                      <input
+                                        className="input"
+                                        list="place-slugs"
+                                        value={event.to_place_slug}
+                                        onChange={(e) => updateEvent(dayIndex, eventIndex, { to_place_slug: e.target.value })}
+                                      />
+                                    </label>
+                                    <label className="grid gap-2 text-sm">
+                                      Транспорт
+                                      <select
+                                        className="input"
+                                        value={event.mode}
+                                        onChange={(e) => updateEvent(dayIndex, eventIndex, { mode: e.target.value })}
+                                      >
+                                        {travelModes.map((mode) => (
+                                          <option key={mode} value={mode}>
+                                            {mode}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  </>
+                                )}
+                              </div>
+
+                              <div className="mt-4 card-compact border-neutral admin-article-card">
+                                <div className="admin-article-header">
+                                  <p className="text-xs uppercase tracking-[0.2em] text-primary">Статья</p>
+                                  <button
+                                    type="button"
+                                    className="button-ghost"
+                                    onClick={() => togglePreview(dayIndex, eventIndex)}
                                   >
-                                    {travelModes.map((mode) => (
-                                      <option key={mode} value={mode}>
-                                        {mode}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                              </>
-                            )}
+                                    {previewEvents[eventKey(dayIndex, eventIndex)] ? "Скрыть предпросмотр" : "Предпросмотр"}
+                                  </button>
+                                </div>
+                                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                  <label className="grid gap-2 text-sm md:col-span-2">
+                                    Заголовок статьи
+                                    <input
+                                      className="input"
+                                      value={event.article.title}
+                                      onChange={(e) => updateArticle(dayIndex, eventIndex, { title: e.target.value })}
+                                    />
+                                  </label>
+                                  <label className="grid gap-2 text-sm md:col-span-2">
+                                    Текст статьи (Markdown)
+                                    <textarea
+                                      className="input font-mono text-xs"
+                                      rows={6}
+                                      value={event.article.content_md}
+                                      onChange={(e) => updateArticle(dayIndex, eventIndex, { content_md: e.target.value })}
+                                    />
+                                  </label>
+                                  <label className="grid gap-2 text-sm md:col-span-2">
+                                    Картинки (URL через запятую)
+                                    <input
+                                      className="input"
+                                      value={
+                                        Array.isArray(event.article.images)
+                                          ? event.article.images.join(", ")
+                                          : event.article.images
+                                      }
+                                      onChange={(e) => updateArticle(dayIndex, eventIndex, { images: e.target.value })}
+                                    />
+                                  </label>
+                                </div>
+                                {previewEvents[eventKey(dayIndex, eventIndex)] ? (
+                                  <div className="admin-preview">
+                                    {event.article.content_md ? (
+                                      <div
+                                        className="prose max-w-none"
+                                        dangerouslySetInnerHTML={{ __html: markdownPreview(event.article.content_md) }}
+                                      />
+                                    ) : (
+                                      <p className="text-sm text-muted">Нет текста для предпросмотра.</p>
+                                    )}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </>
+                          ) : null}
                           </div>
-
-                          <div className="mt-4 card-compact border-neutral">
-                            <p className="text-xs uppercase tracking-[0.2em] text-primary">Статья</p>
-                            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                              <label className="grid gap-2 text-sm md:col-span-2">
-                                Заголовок статьи
-                                <input
-                                  className="input"
-                                  value={event.article.title}
-                                  onChange={(e) => updateArticle(dayIndex, eventIndex, { title: e.target.value })}
-                                />
-                              </label>
-                              <label className="grid gap-2 text-sm md:col-span-2">
-                                Текст статьи (Markdown)
-                                <textarea
-                                  className="input font-mono text-xs"
-                                  rows={6}
-                                  value={event.article.content_md}
-                                  onChange={(e) => updateArticle(dayIndex, eventIndex, { content_md: e.target.value })}
-                                />
-                              </label>
-                              <label className="grid gap-2 text-sm md:col-span-2">
-                                Картинки (URL через запятую)
-                                <input
-                                  className="input"
-                                  value={
-                                    Array.isArray(event.article.images)
-                                      ? event.article.images.join(", ")
-                                      : event.article.images
-                                  }
-                                  onChange={(e) => updateArticle(dayIndex, eventIndex, { images: e.target.value })}
-                                />
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
               </div>
             );
-          })}
+          })() : (
+            <div className="card">
+              <p className="text-sm text-muted">Добавьте день, чтобы начать.</p>
+            </div>
+          )}
         </div>
       </div>
+      ) : null}
 
       <datalist id="place-slugs">
         {placeSlugHints.map((slug) => (
@@ -904,17 +1242,7 @@ export default function TourForm({ mode, tourId }: Props) {
         ))}
       </datalist>
 
-      <div className="flex items-center gap-3">
-        <button type="button" className="button-primary" onClick={onSubmit}>
-          {mode === "create" ? "Создать тур" : "Сохранить изменения"}
-        </button>
-        {mode === "edit" ? (
-          <button type="button" className="button-ghost" onClick={onDelete}>
-            Удалить
-          </button>
-        ) : null}
-        <span className="text-sm text-soft">{status}</span>
-      </div>
+    </div>
     </div>
   );
 }
