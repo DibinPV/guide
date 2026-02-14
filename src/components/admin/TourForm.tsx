@@ -109,9 +109,56 @@ function timeToMinutes(time: string) {
   return (h || 0) * 60 + (m || 0);
 }
 
-function slugify(input: string) {
+const ruTranslitMap: Record<string, string> = {
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "e",
+  ж: "zh",
+  з: "z",
+  и: "i",
+  й: "y",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "h",
+  ц: "ts",
+  ч: "ch",
+  ш: "sh",
+  щ: "shch",
+  ъ: "",
+  ы: "y",
+  ь: "",
+  э: "e",
+  ю: "yu",
+  я: "ya"
+};
+
+function translitRu(input: string) {
   return input
     .toLowerCase()
+    .split("")
+    .map((char) => ruTranslitMap[char] ?? char)
+    .join("");
+}
+
+function slugify(input: string) {
+  return translitRu(input)
+    .replace(/[ăâ]/g, "a")
+    .replace(/[î]/g, "i")
+    .replace(/[șş]/g, "s")
+    .replace(/[țţ]/g, "t")
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-")
